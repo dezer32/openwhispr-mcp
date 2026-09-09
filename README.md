@@ -16,15 +16,56 @@ schema with unversioned `ALTER TABLE` chains.
 
 ## Install
 
+Nothing to clone: `npx` fetches the package and runs it.
+
 ```bash
-npm install
-npm run build
+claude mcp add --scope user openwhispr -- npx -y openwhispr-mcp
 ```
 
-Register it with Claude Code for your user:
+`-y` is not optional — without it npx asks for confirmation the first time, and an MCP client is
+not there to answer. Check the install without a client:
 
 ```bash
-claude mcp add --scope user openwhispr -- node /absolute/path/to/openwhispr-mcp/dist/index.js
+npx -y openwhispr-mcp --version
+```
+
+Any other MCP client takes the same command and args:
+
+```json
+{
+  "mcpServers": {
+    "openwhispr": {
+      "command": "npx",
+      "args": ["-y", "openwhispr-mcp"]
+    }
+  }
+}
+```
+
+### Pinning
+
+A bare `npx -y openwhispr-mcp` resolves `latest` through the registry on every launch, so each
+client session starts with a network round-trip. Pinning an exact version lets npx reuse what it
+already downloaded:
+
+```bash
+claude mcp add --scope user openwhispr -- npx -y openwhispr-mcp@0.1.0
+```
+
+A global install takes npx out of the launch path altogether:
+
+```bash
+npm install -g openwhispr-mcp
+claude mcp add --scope user openwhispr -- openwhispr-mcp
+```
+
+### From source
+
+```bash
+git clone https://github.com/dezer32/openwhispr-mcp.git
+cd openwhispr-mcp
+npm install   # `prepare` builds dist/ as part of the install
+claude mcp add --scope user openwhispr -- node "$PWD/dist/index.js"
 ```
 
 The repository also ships a `.mcp.json` for debugging inside this checkout.
@@ -134,6 +175,19 @@ npm run build
 
 `npm test` runs `npm run build` first: the stdout-hygiene test drives the real `dist/index.js` in a
 child process, so on a fresh clone the tests would otherwise fail on a missing build.
+
+## Release
+
+`dist/` is not in git, so the tarball is built by `prepare`, and `prepublishOnly` refuses to
+publish a tree that does not typecheck or whose tests fail.
+
+```bash
+npm version patch          # bump package.json
+# then bump SERVER_VERSION in src/server.ts to match — clients read that one,
+# and tests/contract/packaging.test.ts fails until the two agree
+npm publish --dry-run      # inspect the file list
+npm publish
+```
 
 The smoke test runs against the **real** app and is opt-in and read-only:
 

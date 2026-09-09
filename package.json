@@ -4,6 +4,24 @@
   "description": "Local MCP server exposing OpenWhispr notes, folders, transcripts and dictionary over the app's CLI bridge",
   "type": "module",
   "license": "MIT",
+  "author": "dezer32",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dezer32/openwhispr-mcp.git"
+  },
+  "homepage": "https://github.com/dezer32/openwhispr-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/dezer32/openwhispr-mcp/issues"
+  },
+  "keywords": [
+    "mcp",
+    "modelcontextprotocol",
+    "openwhispr",
+    "claude",
+    "transcription",
+    "notes",
+    "dictation"
+  ],
   "bin": {
     "openwhispr-mcp": "dist/index.js"
   },
@@ -17,6 +35,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && chmod +x dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run typecheck && npm test",
     "pretest": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
