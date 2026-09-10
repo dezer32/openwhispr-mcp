@@ -18,6 +18,16 @@ import {
   type TranscriptKind,
 } from '../../domain/transcript.js';
 import {
+  EMPTY_NOTE,
+  MERGE_GAP_SECONDS,
+  MERGE_NOTE,
+  NO_TIME_NOTE,
+  PLAIN_NOTE,
+  SPEAKER_NAMES_NOTE,
+  TIME_NOTES,
+} from '../../domain/transcriptNotes.js';
+import { transcriptUri } from '../../domain/transcriptUri.js';
+import {
   DEFAULT_SEGMENT_LIMIT,
   DEFAULT_SEGMENT_OFFSET,
   getNoteTranscriptSchema,
@@ -28,13 +38,6 @@ import { defineTool } from '../defineTool.js';
 /** Hard cap on the rendered `text` format, well below the result-size cap. */
 const TEXT_MAX_CHARS = 20_000;
 
-/**
- * A same-speaker run is one turn while the pauses inside it stay short; past
- * this it is a new turn. Segments carry no `end`, so the gap is measured
- * start-to-start and the threshold is deliberately generous.
- */
-const MERGE_GAP_SECONDS = 30;
-
 /** Two real notes hold 58 KB and 240 KB of transcript; a page must stay far below that. */
 const MAX_RESULT_CHARS = 250_000;
 
@@ -44,40 +47,11 @@ const DESCRIPTION =
   'lines; format=speakers gives per-speaker totals only — use it first on long recordings. ' +
   'A note with no transcript returns an empty result, not an error.';
 
-const SPEAKER_NAMES_NOTE =
-  'Speaker labels come from the transcript itself. Readable names live in the app\'s speaker_mappings table, which the CLI bridge does not expose, so speaker and speaker_name may be placeholders such as speaker_0.';
-
-const PLAIN_NOTE =
-  'This transcript is legacy flat text: no speaker labels and no timestamps. It is served as chunks of about 2000 characters, paged with offset/limit.';
-
-const EMPTY_NOTE =
-  'This note has no transcript. Only recordings produce one; a note written by hand never has it, and that is not an error.';
-
 const FILTERED_TEXT_NOTE =
   'Only the segments matching the filter were rendered, so two consecutive lines were not necessarily consecutive in the recording. Compare filtered_segments with total_segments.';
 
-const TIME_NOTES: Record<TimeUnit, string> = {
-  ms: 'Segment timestamps are epoch milliseconds; t_rel is seconds from the first segment of the whole transcript.',
-  s: 'Segment timestamps are epoch seconds; t_rel is seconds from the first segment. The app\'s own UI mistakes these for milliseconds and shows offsets 1000x too small.',
-  relative:
-    'Segment timestamps are already relative to the start of the recording; t_rel is seconds from the first segment.',
-};
-
-/**
- * "No timestamps at all" and "timestamps that are already relative" are two
- * different facts, and `detectTimeUnit(0)` collapses them into the second one —
- * which then reads as a broken server when every `t_rel` comes back null.
- */
-const NO_TIME_NOTE =
-  'Not one segment in this transcript carries a timestamp, so time_unit is null and t_rel, t_rel_next and the per-speaker times are null throughout; rendered lines show --:--. That is what the recording stored, not a failure to read it.';
-
-/**
- * `format:"text"` is the only place where segments are folded together, so the
- * three thresholds that decide it have to be visible: without them a caller
- * counts the rendered lines and reports them as turns of the conversation.
- */
-const MERGE_NOTE =
-  `Rendered lines are not diarization turns. Consecutive segments are folded into one line only while the speaker is the same, source (mic/system) is the same, the start-to-start gap stays under merge_gap_seconds and the line stays under merge_max_chars — so the line count is an artifact of these three thresholds. Use format=segments for the raw segments.`;
+const TRUNCATED_TEXT_NOTE =
+  'The rendered text stops at max_chars. Read transcript_uri for the whole transcript as one markdown document, or page it with format="segments".';
 
 const NOT_FOUND_HINT =
   'Note ids come from list_notes, search_notes or get_note. A deleted note stays invisible to the bridge.';
@@ -102,6 +76,8 @@ interface TranscriptPayload {
   note_id: number;
   note_title: string | null;
   note_updated_at: string | null;
+  /** The markdown resource holding the whole transcript; `null` when there is none. */
+  transcript_uri: string | null;
   kind: TranscriptKind;
   format: TranscriptFormat;
   time_unit: TimeUnit | null;
@@ -121,6 +97,7 @@ interface TranscriptPayload {
   text?: string;
   truncated?: boolean;
   max_chars?: number;
+  truncation_note?: string;
   merge_note?: string;
   merge_gap_seconds?: number;
   merge_max_chars?: number;
@@ -180,6 +157,7 @@ export function registerGetNoteTranscript(server: McpServer, deps: ToolDeps): vo
           note_id: args.note_id,
           note_title: typeof note.title === 'string' ? note.title : null,
           note_updated_at: updatedAt,
+          transcript_uri: parsed.kind === null ? null : transcriptUri(args.note_id),
           kind: parsed.kind,
           format: args.format,
           time_unit: null,
@@ -228,6 +206,7 @@ export function registerGetNoteTranscript(server: McpServer, deps: ToolDeps): vo
           payload.text = rendered.text;
           payload.truncated = rendered.truncated;
           payload.max_chars = TEXT_MAX_CHARS;
+          if (rendered.truncated) payload.truncation_note = TRUNCATED_TEXT_NOTE;
           payload.merge_note = MERGE_NOTE;
           payload.merge_gap_seconds = MERGE_GAP_SECONDS;
           payload.merge_max_chars = DEFAULT_BLOCK_CHARS;
@@ -309,6 +288,7 @@ function withPlain(
     payload.text = full.slice(0, TEXT_MAX_CHARS);
     payload.truncated = full.length > TEXT_MAX_CHARS;
     payload.max_chars = TEXT_MAX_CHARS;
+    if (payload.truncated) payload.truncation_note = TRUNCATED_TEXT_NOTE;
     return payload;
   }
 

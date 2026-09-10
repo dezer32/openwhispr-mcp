@@ -2,6 +2,7 @@ import type { RawFolder, RawNote, RawTranscription } from '../bridge/types.js';
 import { num } from './coerce.js';
 import { toIsoZ } from './dates.js';
 import { buildPreview } from './ftsQuery.js';
+import { transcriptUri } from './transcriptUri.js';
 import { countChars, countWords } from './words.js';
 
 /**
@@ -38,6 +39,8 @@ export interface NoteSummary {
   has_transcript: boolean;
   transcript_kind: TranscriptKind | null;
   transcript_segment_count: number | null;
+  /** The markdown resource holding the whole transcript; `null` when there is none. */
+  transcript_uri: string | null;
   audio_duration_seconds: number | null;
 }
 
@@ -147,13 +150,17 @@ export function describeTranscript(raw: string | null | undefined): TranscriptSh
   };
 }
 
+/**
+ * Names the resource first: it is the only way to get a whole recording in one
+ * read, while `get_note_transcript` pages it 100 segments at a time.
+ */
 function transcriptHint(shape: TranscriptShape): string | null {
   if (shape.kind === null) return null;
   if (shape.kind === 'json' && shape.segment_count !== null) {
     const noun = shape.segment_count === 1 ? 'segment' : 'segments';
-    return `Use get_note_transcript for the ${shape.segment_count} transcript ${noun}.`;
+    return `Read transcript_uri for the whole transcript as one markdown document, or use get_note_transcript to page the ${shape.segment_count} ${noun}.`;
   }
-  return 'Use get_note_transcript for the full transcript text.';
+  return 'Read transcript_uri for the whole transcript as one markdown document, or use get_note_transcript for the text in chunks.';
 }
 
 function parseParticipants(raw: unknown): { value: unknown; failed: boolean } {
@@ -186,6 +193,7 @@ export function toNoteSummary(note: RawNote, folderName: string | null): NoteSum
     has_transcript: shape.kind !== null,
     transcript_kind: shape.kind,
     transcript_segment_count: shape.segment_count,
+    transcript_uri: shape.kind === null ? null : transcriptUri(note.id),
     audio_duration_seconds: num(note.audio_duration_seconds),
   };
 }

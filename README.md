@@ -109,6 +109,37 @@ If the app is not running, the file is absent and every tool answers with `kind:
 | `update_dictionary` | write | Add or remove words in the custom dictionary of the local OpenWhispr app. Words are trimmed and de-duplicated, and case is significant. Returns what was sent plus the dictionary as it reads back afterwards. |
 | `get_usage` | read | Summarise what is stored in the local OpenWhispr app: how many notes, folders, transcriptions and dictionary words there are, split by type, folder and month, with word, character and audio totals. Counts come from a capped read, and the reply lists exactly what it cannot see. |
 
+## Resources
+
+One resource template, published because no tool can hand over a whole recording:
+`get_note_transcript` stops `format="text"` at 20 000 characters, and `format="segments"` pages
+100 segments at a time — seven to nine calls for a real meeting.
+
+| URI | MIME | What it is |
+|---|---|---|
+| `openwhispr://notes/{note_id}/transcript.md` | `text/markdown` | One note's transcript as a single markdown document: header facts (`note_id`, `note_type`, `updated_at`, segment count, time unit), a per-speaker table (segments, words, share), the caveats that apply to the labels and the times, then the whole `[mm:ss] speaker: …` body. |
+
+- `resources/list` enumerates the notes that actually have a transcript — titled by note title,
+  described by note type, segment count and `updated_at`. `size` is deliberately absent: the only
+  cheap number is the length of the raw JSON column, roughly three times the rendered document, and
+  a wrong size in the metadata is worse than none.
+- **A closed app is an empty list, not an error.** Clients pull `resources/list` by themselves and
+  often, and OpenWhispr not running is a normal state; `health` is where a diagnosis belongs.
+- Nothing is cached on disk. Every read renders from the bridge, which costs one HTTP call and
+  leaves no stale document to invalidate when the app re-records a note.
+- The document is cut at `OPENWHISPR_MCP_MAX_RESULT_CHARS` (400 000 by default — about five times
+  the largest real transcript) on a line boundary, closing with a `> Truncated at …` marker that
+  names `format="segments"` for the rest. A cut document is still served; a truncated read never
+  fails.
+- `resources/read` has no `isError` envelope, so a failure arrives as a protocol error whose message
+  is the same `{"error": {"kind", "message", "hint"}}` JSON the tools return: a missing note is
+  `not_found`, a malformed URI `invalid_argument`, a closed app `bridge_not_running`.
+- Every note summary from `list_notes`, `search_notes` and `get_note` carries `transcript_uri`, so
+  an agent still gets the URI in a client that does not surface resources in its own UI.
+- The SDK declares `resources.listChanged: true` on this server's behalf, but
+  `notifications/resources/list_changed` is never sent — nothing here watches the app for new
+  recordings. Re-list on your own schedule.
+
 ## Response conventions
 
 Every tool answers with one JSON object in a single text block.

@@ -1,9 +1,10 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { ToolDeps } from './deps.js';
+import { registerAllResources } from './mcp/resources/index.js';
 import { registerAll } from './mcp/tools/index.js';
 
 export const SERVER_NAME = 'openwhispr';
-export const SERVER_VERSION = '0.1.0';
+export const SERVER_VERSION = '0.2.0';
 
 const INSTRUCTIONS = [
   'Read-and-write access to the local OpenWhispr app (notes, folders, meeting transcripts,',
@@ -19,5 +20,6 @@ export function createServer(deps: ToolDeps): McpServer {
     { capabilities: { tools: {} }, instructions: INSTRUCTIONS },
   );
   registerAll(server, deps);
+  registerAllResources(server, deps);
   return server;
 }

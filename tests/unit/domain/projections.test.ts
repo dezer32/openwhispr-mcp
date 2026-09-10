@@ -32,6 +32,7 @@ const SUMMARY_KEYS = [
   'has_transcript',
   'transcript_kind',
   'transcript_segment_count',
+  'transcript_uri',
   'audio_duration_seconds',
 ].sort();
 
@@ -133,6 +134,17 @@ describe('toNoteSummary', () => {
     expect(summary.transcript_segment_count).toBeNull();
   });
 
+  it('links the transcript resource only for a note that has one', () => {
+    expect(
+      toNoteSummary(makeNote({ id: 13, transcript: jsonTranscript(twoSpeakerSegments(3)) }), null)
+        .transcript_uri,
+    ).toBe('openwhispr://notes/13/transcript.md');
+    expect(
+      toNoteSummary(makeNote({ id: 13, transcript: LEGACY_PLAIN_TRANSCRIPT }), null).transcript_uri,
+    ).toBe('openwhispr://notes/13/transcript.md');
+    expect(toNoteSummary(makeNote({ id: 13, transcript: null }), null).transcript_uri).toBeNull();
+  });
+
   it('reports no transcript at all', () => {
     const summary = toNoteSummary(makeNote({ transcript: null }), null);
     expect(summary.has_transcript).toBe(false);
@@ -224,13 +236,15 @@ describe('toNoteDetail', () => {
     ).toBe(false);
   });
 
-  it('points at get_note_transcript instead of inlining 202 segments', () => {
+  it('offers the resource first and get_note_transcript instead of inlining 202 segments', () => {
     const detail = toNoteDetail(
       makeNote({ transcript: jsonTranscript(twoSpeakerSegments(202)) }),
       null,
       { includeEnhanced: false },
     );
-    expect(detail.transcript_hint).toBe('Use get_note_transcript for the 202 transcript segments.');
+    expect(detail.transcript_hint).toBe(
+      'Read transcript_uri for the whole transcript as one markdown document, or use get_note_transcript to page the 202 segments.',
+    );
   });
 
   it('hints at a plain transcript and stays silent when there is none', () => {

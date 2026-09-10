@@ -1,6 +1,6 @@
 {
   "name": "openwhispr-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Local MCP server exposing OpenWhispr notes, folders, transcripts and dictionary over the app's CLI bridge",
   "type": "module",
   "license": "MIT",

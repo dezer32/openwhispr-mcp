@@ -1,6 +1,11 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
+import type {
+  CallToolResult,
+  ReadResourceResult,
+  Resource,
+  Tool,
+} from '@modelcontextprotocol/sdk/types.js';
 import { loadConfig, type Config } from '../../src/config.js';
 import { createTtlStore } from '../../src/domain/snapshotStore.js';
 import { createServer } from '../../src/server.js';
@@ -22,6 +27,9 @@ export interface Harness {
   client: Client;
   deps: ToolDeps;
   listTools(): Promise<Tool[]>;
+  listResources(): Promise<Resource[]>;
+  /** Rejects with an `McpError` when the server refuses the read. */
+  readResource(uri: string): Promise<ReadResourceResult>;
   call(name: string, args?: Record<string, unknown>): Promise<CallToolResult>;
   /** Parses the single JSON text block a tool returns. */
   callJson<T = unknown>(name: string, args?: Record<string, unknown>): Promise<T>;
@@ -63,6 +71,13 @@ export async function startHarness(options: HarnessOptions = {}): Promise<Harnes
     async listTools() {
       const { tools } = await client.listTools();
       return tools;
+    },
+    async listResources() {
+      const { resources } = await client.listResources();
+      return resources;
+    },
+    async readResource(uri) {
+      return client.readResource({ uri });
     },
     async call(name, args = {}) {
       return (await client.callTool({ name, arguments: args })) as CallToolResult;
